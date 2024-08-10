@@ -26,9 +26,45 @@ if wlan is None:
 print("Raspberry Pi Pico W OK")
 print("IP address:", wlan.ifconfig()[0])
 
-# HTML to serve
+# HTML to serve (as defined above)
 html = """<!DOCTYPE html>
-<!-- Add your HTML content here -->
+<html>
+<head>
+    <title>Smart Farming Control</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px; cursor: pointer; }
+    </style>
+    <script>
+        function sendRequest(path) {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', path, true);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    alert(xhr.responseText);
+                }
+            };
+            xhr.send();
+        }
+
+        function checkForUpdate() {
+            sendRequest('/update_check');
+        }
+
+        function performUpdate() {
+            sendRequest('/update');
+        }
+    </script>
+</head>
+<body>
+    <h1>Smart Farming Control</h1>
+    <button onclick="sendRequest('/all_on')">Turn All Relays On</button>
+    <button onclick="sendRequest('/all_off')">Turn All Relays Off</button>
+    <br>
+    <button onclick="checkForUpdate()">Check for Updates</button>
+    <button onclick="performUpdate()">Perform Update</button>
+</body>
+</html>
 """
 
 def web_page():
@@ -48,16 +84,13 @@ def get_status():
 
 def check_for_update():
     # Placeholder function for checking updates
-    # Implement your logic here to check for any available updates
     print("Checking for updates...")
     # Return True if an update is available
     return False
 
 def update_firmware():
     # Placeholder function to update firmware
-    # Implement your logic here for firmware update
     print("Updating firmware...")
-    # Example: download and flash new firmware
     return True
 
 # Create a socket and listen for connections
@@ -73,6 +106,7 @@ def serve_client(conn):
     all_on = request.find('/all_on') >= 0
     all_off = request.find('/all_off') >= 0
     status_req = request.find('/status') >= 0
+    update_check_req = request.find('/update_check') >= 0
     update_req = request.find('/update') >= 0
 
     if relay_on:
@@ -101,17 +135,21 @@ def serve_client(conn):
         response = "All Relays OFF"
     elif status_req:
         response = json.dumps(get_status())
-    elif update_req:
+    elif update_check_req:
         if check_for_update():
-            update_firmware()
-            response = "Firmware Updated"
+            response = "Update Available"
         else:
             response = "No Update Available"
+    elif update_req:
+        if update_firmware():
+            response = "Firmware Updated"
+        else:
+            response = "Update Failed"
     else:
         response = web_page()
 
     conn.send('HTTP/1.1 200 OK\r\n')
-    if status_req or update_req:
+    if status_req or update_check_req or update_req:
         conn.send('Content-Type: application/json\r\n')
     else:
         conn.send('Content-Type: text/html\r\n')
